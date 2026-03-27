@@ -41,9 +41,9 @@ export async function POST(req: Request) {
     });
 
     const response = await groqClient.chat.completions.create({
-      model: "llama3-70b-8192",
+      model: "openai/gpt-oss-120b",
       max_tokens: 2024,
-      messages: messages as any,
+      messages: messages as Parameters<typeof groqClient.chat.completions.create>[0]['messages'],
       temperature: 0.7,
       tools: [
         {
@@ -96,6 +96,25 @@ export async function POST(req: Request) {
             },
           },
         },
+        {
+          type: "function",
+          function: {
+            name: "autosave",
+            description:
+              "Activate an automatic savings rule. Called when the user says they want to save a percentage of their income, e.g. 'ahorra el 10%' or 'save 20% of my income'",
+            parameters: {
+              type: "object",
+              properties: {
+                percentage: {
+                  type: "number",
+                  description:
+                    "The percentage of income to automatically save (1–100)",
+                },
+              },
+              required: ["percentage"],
+            },
+          },
+        },
       ],
       tool_choice: "auto",
     });
@@ -131,52 +150,36 @@ export async function POST(req: Request) {
 }
 
 function getSystemPrompt() {
-  return `You are Rootstock AI Agent, a personal DeFi assistant for the Rootstock testnet ecosystem.
+  return `Sos BlitzPay, un asistente financiero personal para DeFi en Rootstock (Bitcoin sidechain).
+  Respondés en español rioplatense (Argentina/Uruguay). Sos conciso, amigable y profesional.
   
-  IMPORTANT TESTNET DETAILS:
-  - We are operating on Rootstock TESTNET, not mainnet
-  - The native token is TRBTC (Testnet RBTC), not RBTC
-  - Always use TRBTC when referring to the native token
-  - All balances and transactions are using testnet tokens with no real value
+  ENTORNO: Rootstock TESTNET
+  - Token nativo: tRBTC (testnet RBTC)
+  - Tokens disponibles: tRBTC, tRIF, tDOC
+  - Sin valor real (testnet)
   
-  RESPONSE GUIDELINES:
-  - Be extremely concise - no more than 2 short paragraphs total
-  - Be conversational and professional - like a financial advisor
-  - Always provide a personalized response that directly addresses the query
-  - If portfolio is empty, briefly suggest 1-2 Rootstock options
+  TUS FUNCIONES:
+  - "transfer": cuando el usuario quiere enviar tokens. Ej: "mandale 0.01 a juan" → usá transfer
+  - "balance": cuando pregunta cuánto tiene. Ej: "cuanto tengo" → usá balance
+  - "autosave": cuando quiere ahorrar automáticamente. Ej: "ahorra el 10%" → usá autosave con percentage=10
   
-  FORMATTING:
-  - Keep responses under 300 characters whenever possible
-  - Use bold (**text**) for important terms
-  - No lists, no lengthy explanations
-  - One short greeting line, then 1-2 concise sentences for the answer
+  RESPUESTAS:
+  - Máximo 2 oraciones cortas
+  - Usá negrita (**texto**) para números y tokens
+  - Sin listas largas ni explicaciones técnicas
+  - Si el usuario pide enviar/recibir/ahorrar/balance → SIEMPRE usá la función correspondiente
+  - Hablá de "tRBTC" no "RBTC" (estamos en testnet)
   
-  CONTENT:
-  - Rootstock testnet ecosystem: TRBTC (native), tRIF, tDOC, etc.
-  - For transfers/balances: respond naturally without mentioning functions
-  - For strategies: give only brief, specific insights
-  
-  BE EXTREMELY BRIEF. Your responses should be scannable in 5 seconds or less.`;
+  SÉ ULTRA-BREVE. Escaneable en 3 segundos.`;
 }
 
-function createChatPrompt(userContext: any, question: string, address: string) {
-  return `I need your help with the following DeFi request for my Rootstock testnet wallet (${address}):
-  
-  USER QUESTION: "${question}"
-  
-  My portfolio data: ${JSON.stringify(
-    userContext,
-    null,
-    2
-  )} the amount is in wei so you need to convert it to the correct token amount by dividing by 10e18.
-  
-  IMPORTANT: We are on the TESTNET environment. The native token is tRBTC (not RBTC). All tokens are testnet versions (tRBTC, tRIF, tDOC) with no real value.
-  
-  Please provide a helpful, personalized response that directly addresses my question. If I'm asking about sending tokens or checking balances, please handle that appropriately. If my portfolio is empty, don't just tell me I have no tokens - suggest what I could explore in the Rootstock testnet ecosystem.
+function createChatPrompt(userContext: unknown, question: string, address: string) {
+  return `Wallet del usuario: ${address || "no conectada"}
 
-  When I ask to send RBTC, you should interpret this as tRBTC (testnet RBTC). Always use tRBTC in your function calls and responses.
+MENSAJE: "${question}"
 
-  If needed, you can USE FUNCTIONS like **transfer** or **balance** to help me with my request. WHENEVER ASKED TO SEND TOKENS, PLEASE USE THE **transfer** FUNCTION. WHENEVER ASKED TO CHECK BALANCES, PLEASE USE THE **balance** FUNCTION.
-  
-  Be conversational and friendly - like a professional financial advisor would be, not like a generic chatbot. Avoid technical language about functions or API calls - speak to me naturally about my options.`;
+Portfolio: ${JSON.stringify(userContext, null, 2)}
+Nota: los amounts están en wei, dividir por 10^18 para mostrar el valor real.
+
+Respondé según las instrucciones del sistema. Si corresponde a una función (transfer/balance/autosave), usala directamente.`;
 }

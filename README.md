@@ -1,108 +1,120 @@
-[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/rsksmart/ai-agent-rsk/badge)](https://scorecard.dev/viewer/?uri=github.com/rsksmart/ai-agent-rsk)
+﻿[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/rsksmart/ai-agent-rsk/badge)](https://scorecard.dev/viewer/?uri=github.com/rsksmart/ai-agent-rsk)
 [![CodeQL](https://github.com/rsksmart/rskj/workflows/CodeQL/badge.svg)](https://github.com/rsksmart/ai-agent-rsk/actions?query=workflow%3ACodeQL)
 
-<img src="rootstock-logo.png" alt="RSK Logo" style="width:100%; height: auto;" />
+# BlitzPay - DeFi Chat on Bitcoin (Rootstock)
 
-# Conversational AI Agent on Rootstock Testnet
+> Pagos, ahorro automatico e IA conversacional sobre Rootstock - sin friccion para LATAM.
 
-**⚠️ Warning: This is a prototype intended for hackathons, learning, and rapid prototyping. Use it at your own risk. It is not ready for production without further testing.**
+**Prototipo para hackathon. No usar en produccion sin auditoria adicional.**
 
-This project demonstrates how to build a lightweight conversational AI agent that can interpret natural language and perform blockchain actions like checking token balances and sending tRBTC—all through a chat interface. It runs on the **Rootstock testnet** using [**Groq’s LLM API**](https://groq.com/), [**Reown AppKit**](https://reown.com/), and [**Wagmi**](https://wagmi.sh/), all wrapped in a [**Next.js app**](https://nextjs.org/) styled with [**Shadcn UI**](https://ui.shadcn.com/).
+BlitzPay combina un chat tipo WhatsApp con un agente de IA (Groq) para que cualquier usuario pueda enviar pagos en tRBTC, activar auto-ahorro DeFi y consultar balances usando lenguaje natural.
 
-> 🔗 Inspired by [BitMate](https://github.com/Zero-Labs-Workspace/BitMate) – a hackathon project exploring the fusion of AI and DeFi on Rootstock.
+## Demo rapida
 
-## Features
+```
+Usuario: "mandale 0.01 tRBTC a 0xABC..."
+  -> IA interpreta -> ejecuta transaccion en Rootstock -> muestra TX hash
 
-- 🔐 Wallet connection via Reown AppKit (MetaMask, WalletConnect, embedded)
-- 🧠 Natural language interface via Groq LLM API
-- 💬 Conversational agent with memory and action routing
-- ⚡ Send tRBTC and check token balances using plain English
-- 🖼️ UI powered by Next.js App Router and Shadcn components
+Usuario: "ahorra el 10%"
+  -> IA activa regla -> banner verde en UI -> contrato BlitzSavings en Rootstock
 
-## Prerequisites
+Usuario: "cuanto tengo"
+  -> IA llama balance -> muestra saldo en pantalla
+```
 
-Make sure you have the following installed:
+## Stack
 
-- [Node.js](https://nodejs.org/) (v18+)
-- [Git](https://git-scm.com/)
-- A browser wallet like MetaMask connected to the [Rootstock Testnet](https://explorer.testnet.rootstock.io/)
+| Capa       | Tecnologia                          |
+|------------|-------------------------------------|
+| Frontend   | Next.js 15, TailwindCSS, shadcn/ui  |
+| Wallet     | Reown AppKit + wagmi                |
+| IA         | Groq (llama3-70b-8192)              |
+| Blockchain | Rootstock Testnet (chain 31)        |
+| Contrato   | BlitzSavings.sol (Solidity ^0.8)    |
+| WhatsApp   | WAHA webhook (/api/webhook/waha)    |
 
-Optional but recommended:
+## Setup
 
-- [Bun](https://bun.sh/) (v1.1+) or [Yarn](https://yarnpkg.com/)
+### 1. Instalar
 
-## Getting Started
+```bash
+npm install
+```
 
-1. **Clone the Repository**
+### 2. Variables de entorno
 
-   ```bash
-   git clone https://github.com/rsksmart/ai-agent-rsk.git
-   cd ai-agent-rsk
-   ```
+```bash
+cp .env.example .env.local
+```
 
-2. **Install Dependencies**
+| Variable | Descripcion |
+|---|---|
+| NEXT_PUBLIC_PROJECT_ID | Reown Cloud project ID |
+| NEXT_PUBLIC_RPC_TESTNET | RPC Rootstock Testnet (ej: https://public-node.testnet.rsk.co) |
+| GROQ_API_KEY | API key de console.groq.com |
+| NEXT_PUBLIC_BLITZ_SAVINGS_ADDRESS | Contrato desplegado (opcional) |
+| WAHA_WEBHOOK_SECRET | Secreto WAHA (opcional) |
 
-   ```bash
-   npm install # or bun install or yarn install
-   ```
+### 3. Correr
 
-3. **Configure Environment Variables**
+```bash
+npm run dev
+# -> http://localhost:3000
+```
 
-   - Copy `.env.example` to `.env.local`
-   - Fill in the following values:
+## Tests
 
-     ```
-     NEXT_PUBLIC_PROJECT_ID=
-     NEXT_PUBLIC_RPC_MAINNET=
-     NEXT_PUBLIC_RPC_TESTNET=
-     NEXT_PUBLIC_GROQ_API_KEY=
-     ```
-   You can get the api keys this way:
+```bash
+npm test
+```
 
-   - ProjectId at [Reown Cloud](https://cloud.reown.com/)
-   - RPCs at [Rootstock RPC API](https://dashboard.rpc.rootstock.io/dashboard)
-   - Groq API Key at [Groq Console](https://console.groq.com/keys)
+Cubre: AutoSave logic, AI function call parser, wallet validation.
 
-4. **Run the Dev Server**
+## API Endpoints
 
-   ```bash
-   npm run dev # or bun dev or yarn dev
-   ```
+### POST /api/ai
 
-## Project Structure
+```json
+{ "question": "mandale 0.01 a 0xABC...", "address": "0xUSER...", "messageHistory": [] }
+Response: { "functionCall": { "name": "transfer", "arguments": { ... } } }
+```
 
-- `app/page.tsx` — Main chat UI and wallet interface
-- `src/lib/utils.ts` — Wallet address validation and token lookup
-- `src/lib/constants.ts` — Block explorer URLs and other constants
-- `components/` — Reusable UI components and chat layout
-- `app/api/ai` — Endpoint to call Groq LLM API
+### POST /api/webhook/waha
 
-## Contributors
+Recibe mensajes WhatsApp. Comandos: /send 0.01, /balance, /save 10%, texto libre (-> IA).
 
-- **flash** ([@flash](https://github.com/chrisarevalo11))
+## Contrato BlitzSavings
 
-## Troubleshooting
+contracts/BlitzSavings.sol - vault DeFi en Rootstock.
 
-- **Groq API Key Not Working**: Make sure it’s correctly set in `.env.local` and not rate-limited.
-- **Wallet Connection Fails**: Check MetaMask is on the Rootstock Testnet.
-- **Token Not Found**: Make sure the token is an ERC-20 on Rootstock Testnet.
+Funciones: deposit(), withdraw(amount), getBalance(user), setSavingsRule(%), getSavingsRule(user), depositFor(user)
 
-## Contributing
+Testnet faucet: https://faucet.rootstock.io
 
-We welcome community contributions! Feel free to fork the project and submit a pull request. Just make sure your changes are well-documented and scoped to the project's purpose.
+## Demo Hackathon
 
-## Support
+```bash
+# Terminal 1
+npm run dev
 
-If you run into any issues or have questions, please [open an issue](https://github.com/rsksmart/ai-agent-rsk/issues) on GitHub.
+# Terminal 2 - simula flujo completo
+npx tsx scripts/seed.ts
+```
 
-## Disclaimer
+Flujo: Login -> Balance -> Enviar pago -> Activar auto-ahorro -> Botones rapidos
 
-The software provided in this GitHub repository is offered “as is,” without warranty of any kind, express or implied, including but not limited to the warranties of merchantability, fitness for a particular purpose, and non-infringement.
+## Arquitectura
 
-- **Testing**: The software has not undergone testing of any kind, and its functionality, accuracy, reliability, and suitability for any purpose are not guaranteed.
-- **Use at Your Own Risk**: The user assumes all risks associated with the use of this software. The author(s) of this software shall not be held liable for any damages, including but not limited to direct, indirect, incidental, special, consequential, or punitive damages arising out of the use of or inability to use this software, even if advised of the possibility of such damages.
-- **No Liability**: The author(s) of this software are not liable for any loss or damage, including without limitation, any loss of profits, business interruption, loss of information or data, or other pecuniary loss arising out of the use of or inability to use this software.
-- **Sole Responsibility**: The user acknowledges that they are solely responsible for the outcome of the use of this software, including any decisions made or actions taken based on the software’s output or functionality.
-- **No Endorsement**: Mention of any specific product, service, or organization does not constitute or imply endorsement by the author(s) of this software.
-- **Modification and Distribution**: This software may be modified and distributed under the terms of the license provided with the software. By modifying or distributing this software, you agree to be bound by the terms of the license.
-- **Assumption of Risk**: By using this software, the user acknowledges and agrees that they have read, understood, and accepted the terms of this disclaimer and assume all risks associated with the use of this software.
+```
+src/app/page.tsx                <- Chat UI (WhatsApp-like)
+src/app/api/ai/route.ts         <- Groq + function calling
+src/app/api/webhook/waha/       <- WAHA WhatsApp webhook
+src/lib/autosave.ts             <- Logica auto-ahorro (pura)
+contracts/BlitzSavings.sol      <- Vault DeFi Solidity
+__tests__/                      <- Unit + integration tests
+scripts/seed.ts                 <- Demo seed
+```
+
+## Licencia
+
+MIT

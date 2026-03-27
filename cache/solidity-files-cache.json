@@ -1,0 +1,41 @@
+{
+  "_format": "hh-sol-cache-2",
+  "files": {
+    "C:\\Users\\emanu\\OneDrive\\Desktop\\ai-agent-rsk\\contracts\\BlitzSavings.sol": {
+      "lastModificationDate": 1774624636422,
+      "contentHash": "e9873b93194cd8ba74f4172116e13a58",
+      "sourceName": "contracts/BlitzSavings.sol",
+      "solcConfig": {
+        "version": "0.8.20",
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 200
+          },
+          "evmVersion": "paris",
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        "^0.8.20"
+      ],
+      "artifacts": [
+        "BlitzSavings"
+      ]
+    }
+  }
+}

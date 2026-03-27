@@ -16,12 +16,11 @@ export const networks = [rootstockTestnet, rootstock] as [AppKitNetwork, ...AppK
 export const wagmiAdapter = new WagmiAdapter({
   chains: [rootstockTestnet, rootstock],
   transports: {
-    [rootstockTestnet.id]: http(), 
-    [rootstock.id]: http(), 
+    [rootstockTestnet.id]: http(),
+    [rootstock.id]: http(),
   },
-  storage: createStorage({
-    storage: cookieStorage
-  }),
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  storage: createStorage({ storage: cookieStorage }) as any,
   ssr: true,
   projectId,
   networks

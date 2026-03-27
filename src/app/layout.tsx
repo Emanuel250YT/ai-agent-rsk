@@ -6,8 +6,8 @@ import './globals.css';
 import ContextProvider from '@/context'
 
 export const metadata: Metadata = {
-  title: "AI Agent on Rootstock Testnet",
-  description: "Conversational AI Agent on Rootstock Testnet",
+  title: "BlitzPay — DeFi Chat on Bitcoin",
+  description: "Agente financiero con IA en Rootstock. Enviá pagos, ahorrá automáticamente y consultá tu balance usando lenguaje natural.",
 };
 
 export default async function RootLayout({

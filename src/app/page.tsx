@@ -1,13 +1,10 @@
 "use client";
 
 import { ConnectButton } from "@/components/ConnectButton";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import Footer from "@/components/Footer";
-import { Loader2, Send, ExternalLink } from "lucide-react";
+import { Loader2, Send, ExternalLink, Zap, TrendingUp, X, Wallet } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import ReactMarkdown from "react-markdown";
 import { Button } from "@/components/ui/button";
-import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import { useAppKitAccount } from "@reown/appkit/react";
 import { useConfig } from "wagmi";
@@ -21,14 +18,20 @@ import { checksumAddress, erc20Abi, isAddress, parseEther } from "viem";
 import { findToken, isValidWalletAddress } from "@/lib/utils";
 import { BLOCK_EXPLORER_URL } from "@/lib/contants";
 
+interface AutoSaveRule {
+  percentage: number;
+  active: boolean;
+}
+
 export default function Home() {
   const [messages, setMessages] = useState<
-    { role: string; content: React.ReactNode }[]
+    { role: string; content: React.ReactNode; timestamp: Date }[]
   >([
     {
       role: "agent",
       content:
-        "Hello! I can help you interact with the Rootstock testnet. What would you like to do?",
+        "¡Hola! Soy BlitzPay ⚡ Tu asistente financiero en Rootstock. Puedo ayudarte a enviar pagos, consultar tu balance o activar ahorro automático. ¿Qué necesitás?",
+      timestamp: new Date(),
     },
   ]);
 
@@ -36,6 +39,7 @@ export default function Home() {
   const config = useConfig();
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [autoSave, setAutoSave] = useState<AutoSaveRule | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const handleTransfer = async (data: {
@@ -74,7 +78,7 @@ export default function Home() {
     }
   };
 
-  const handleBalance = async (data: any) => {
+  const handleBalance = async (data: { token1: string; address: string }) => {
     try {
       const tokenAdd =
         data.token1.toLowerCase() === "trbtc"
@@ -85,7 +89,9 @@ export default function Home() {
         throw new Error("Token not found");
       }
 
-      const acc = isAddress(data.address) ? data.address : address;
+      const acc = (isAddress(data.address) ? data.address : address) as `0x${string}`;
+
+      if (!acc) throw new Error("No wallet address available");
 
       let balance;
 
@@ -119,27 +125,30 @@ export default function Home() {
     }
   };
 
+  const handleAutoSaveActivation = (percentage: number): string => {
+    setAutoSave({ percentage, active: true });
+    return `✅ Auto-ahorro activado: guardaré el **${percentage}%** de cada ingreso en tu vault DeFi en Rootstock.`;
+  };
+
+  const addAgentMessage = (content: React.ReactNode) => ({
+    role: "agent",
+    content,
+    timestamp: new Date(),
+  });
+
   const handleSend = async () => {
     if (!input.trim()) return;
 
-    const userMessage = { role: "user", content: input };
+    const userMessage = { role: "user", content: input, timestamp: new Date() };
     setInput("");
     setIsLoading(true);
 
-    const processingMessage = {
-      role: "bot" as const,
-      content: "Processing your request...",
-    };
-
-    const newMessages = [...messages, userMessage, processingMessage];
+    const newMessages = [...messages, userMessage];
 
     if (!isConnected) {
       setMessages([
-        ...newMessages.slice(0, -1),
-        {
-          role: "bot",
-          content: "Please connect your wallet to perform this action.",
-        },
+        ...newMessages,
+        addAgentMessage("Conectá tu wallet primero para realizar esta acción. 👆"),
       ]);
       setIsLoading(false);
       return;
@@ -179,91 +188,87 @@ export default function Home() {
         switch (functionData.name) {
           case "transfer":
             if (!isValidWalletAddress(functionData?.arguments?.address)) {
-              throw new Error("Invalid wallet address");
+              throw new Error("Dirección de wallet inválida");
             }
             const transactionHash = await handleTransfer(
               functionData.arguments
             );
             setMessages([
-              ...newMessages.slice(0, -1),
-              {
-                role: "bot",
-                content: (
-                  <a
-                    href={`${BLOCK_EXPLORER_URL}${transactionHash}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-blue-500 hover:text-blue-600 flex items-center gap-1"
-                  >
-                    Transaction:{" "}
-                    {`${transactionHash.slice(0, 6)}...${transactionHash.slice(
-                      -4
-                    )}`}
-                    <ExternalLink size={16} />
-                  </a>
-                ),
-              },
+              ...newMessages,
+              addAgentMessage(
+                <a
+                  href={`${BLOCK_EXPLORER_URL}${transactionHash}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1 text-orange-400 hover:text-orange-300 underline"
+                >
+                  ✅ Transacción enviada:{" "}
+                  {`${transactionHash.slice(0, 6)}...${transactionHash.slice(-4)}`}
+                  <ExternalLink size={14} />
+                </a>
+              ),
             ]);
             break;
 
           case "balance":
             const balance = await handleBalance(functionData.arguments);
             setMessages([
-              ...newMessages.slice(0, -1),
-              {
-                role: "bot",
-                content: (
-                  <div className="w-full">
-                    <div className="mt-2">
-                      Balance: {balance.displayValue} {balance.symbol}
-                    </div>
-                  </div>
-                ),
-              },
+              ...newMessages,
+              addAgentMessage(
+                <div className="space-y-1">
+                  <p className="text-white/60 text-xs">Tu balance actual</p>
+                  <p className="text-2xl font-bold text-orange-400">
+                    {balance.displayValue.toFixed(6)}{" "}
+                    <span className="text-base text-white/70">{balance.symbol}</span>
+                  </p>
+                </div>
+              ),
+            ]);
+            break;
+
+          case "autosave":
+            const pct = functionData.arguments.percentage;
+            const confirmMsg = handleAutoSaveActivation(pct);
+            setMessages([
+              ...newMessages,
+              addAgentMessage(
+                <div className="markdown-content">
+                  <ReactMarkdown>{confirmMsg}</ReactMarkdown>
+                </div>
+              ),
             ]);
             break;
 
           default:
             setMessages([
-              ...newMessages.slice(0, -1),
-              {
-                role: "bot",
-                content: (
-                  <div className="markdown-content space-y-4">
-                    <ReactMarkdown>
-                      {data.analysis ||
-                        "No information available for this query."}
-                    </ReactMarkdown>
-                  </div>
-                ),
-              },
+              ...newMessages,
+              addAgentMessage(
+                <div className="markdown-content">
+                  <ReactMarkdown>
+                    {data.analysis || "No tengo información para esa consulta."}
+                  </ReactMarkdown>
+                </div>
+              ),
             ]);
         }
       } else {
-        // Regular AI response (strategy or information)
         setMessages([
-          ...newMessages.slice(0, -1),
-          {
-            role: "bot",
-            content: (
-              <div className="markdown-content space-y-4">
-                <ReactMarkdown>
-                  {data.analysis || "No information available for this query."}
-                </ReactMarkdown>
-              </div>
-            ),
-          },
+          ...newMessages,
+          addAgentMessage(
+            <div className="markdown-content">
+              <ReactMarkdown>
+                {data.analysis || "No tengo información para esa consulta."}
+              </ReactMarkdown>
+            </div>
+          ),
         ]);
       }
     } catch (error) {
       setMessages([
-        ...newMessages.slice(0, -1),
-        {
-          role: "bot",
-          content: `Error: ${
-            error instanceof Error ? error.message : "Operation failed"
-          }`,
-        },
+        ...newMessages,
+        addAgentMessage(
+          `❌ Error: ${error instanceof Error ? error.message : "Operación fallida"}`
+        ),
       ]);
     } finally {
       setIsLoading(false);
@@ -277,77 +282,150 @@ export default function Home() {
   }, [messages]);
 
   return (
-    <main
-      style={{
-        backgroundImage: "url(/img/background.png)",
-        backgroundSize: "cover",
-        backgroundPosition: "center",
-        backgroundRepeat: "no-repeat",
-      }}
-      className="flex min-h-screen flex-col items-center justify-between"
-    >
-      <div className="w-full max-w-4xl grow flex flex-col items-center justify-around gap-6 px-4">
-        <Image
-          src={"/img/rsk.png"}
-          alt="Rootstock Logo"
-          width={300}
-          height={100}
-          priority
-        />
-        <Card className="w-full">
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle>Rootstock AI Agent</CardTitle>
-            <ConnectButton />
-          </CardHeader>
-          <CardContent>
-            <div
-              className="space-y-4 mb-4 h-[400px] overflow-y-auto p-2 border rounded-md"
-              ref={containerRef}
-            >
-              {messages.map(({ role, content }, idx) => (
-                <div
-                  key={idx}
-                  className={`flex ${
-                    role === "user" ? "justify-end" : "justify-start"
-                  }`}
-                >
-                  <div
-                    className={`max-w-[80%] rounded-lg px-4 py-2 ${
-                      role === "user"
-                        ? "bg-primary text-primary-foreground"
-                        : "bg-muted"
-                    }`}
-                  >
-                    <div className="whitespace-pre-wrap">{content}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div className="flex gap-2">
-              <Input
-                placeholder="Ask about Rootstock or perform actions..."
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) {
-                    e.preventDefault();
-                    handleSend();
-                  }
-                }}
-                disabled={isLoading}
-              />
-              <Button onClick={handleSend} disabled={isLoading}>
-                {isLoading ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Send className="h-4 w-4" />
-                )}
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+    <div className="flex flex-col h-screen max-w-md mx-auto bg-[#0a0a0a] relative">
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-3 bg-[#111111] border-b border-white/10 z-10">
+        <div className="flex items-center gap-2.5">
+          <div className="w-9 h-9 bg-orange-500 rounded-full flex items-center justify-center shadow-lg shadow-orange-500/30">
+            <Zap className="w-4 h-4 text-white" fill="white" />
+          </div>
+          <div>
+            <p className="font-bold text-white text-sm leading-tight">BlitzPay</p>
+            <p className="text-[11px] text-green-400 leading-tight">● Online · Rootstock Testnet</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          {address && (
+            <span className="hidden sm:flex items-center gap-1 text-[11px] text-white/40 bg-white/5 rounded-full px-2.5 py-1">
+              <Wallet className="w-3 h-3" />
+              {`${address.slice(0, 5)}…${address.slice(-4)}`}
+            </span>
+          )}
+          <ConnectButton />
+        </div>
       </div>
-      <Footer />
-    </main>
+
+      {/* AutoSave Banner */}
+      {autoSave?.active && (
+        <div className="flex items-center justify-between px-4 py-2 bg-green-500/10 border-b border-green-500/20">
+          <div className="flex items-center gap-2">
+            <TrendingUp className="w-4 h-4 text-green-400 flex-shrink-0" />
+            <span className="text-xs text-green-300">
+              Auto-ahorro activo: <span className="font-semibold">{autoSave.percentage}%</span> de cada ingreso
+            </span>
+          </div>
+          <button
+            onClick={() => setAutoSave(null)}
+            className="text-green-400/50 hover:text-green-400 transition-colors ml-2"
+            aria-label="Cancelar auto-ahorro"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {/* Chat Messages */}
+      <div
+        className="flex-1 overflow-y-auto px-4 py-4 space-y-3"
+        ref={containerRef}
+      >
+        {messages.map(({ role, content, timestamp }, idx) => (
+          <div
+            key={idx}
+            className={`flex items-end gap-2 ${role === "user" ? "justify-end" : "justify-start"}`}
+          >
+            {role === "agent" && (
+              <div className="w-7 h-7 rounded-full bg-orange-500 flex items-center justify-center flex-shrink-0 shadow-md shadow-orange-500/20">
+                <Zap className="w-3.5 h-3.5 text-white" fill="white" />
+              </div>
+            )}
+            <div
+              className={`max-w-[78%] rounded-2xl px-3.5 py-2.5 ${role === "user"
+                ? "bg-orange-500 text-white rounded-br-sm shadow-md shadow-orange-500/20"
+                : "bg-[#1c1c1c] text-white/90 rounded-bl-sm border border-white/[0.06]"
+                }`}
+            >
+              <div className="text-sm leading-relaxed whitespace-pre-wrap break-words">
+                {content}
+              </div>
+              <div
+                className={`text-[10px] mt-1 ${role === "user" ? "text-orange-200/70" : "text-white/25"
+                  } text-right`}
+              >
+                {timestamp.toLocaleTimeString([], {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+              </div>
+            </div>
+          </div>
+        ))}
+
+        {isLoading && (
+          <div className="flex items-end gap-2 justify-start">
+            <div className="w-7 h-7 rounded-full bg-orange-500 flex items-center justify-center flex-shrink-0">
+              <Zap className="w-3.5 h-3.5 text-white" fill="white" />
+            </div>
+            <div className="bg-[#1c1c1c] rounded-2xl rounded-bl-sm px-4 py-3 border border-white/[0.06]">
+              <div className="flex gap-1.5 items-center">
+                <span className="w-2 h-2 bg-orange-400 rounded-full animate-bounce [animation-delay:0ms]" />
+                <span className="w-2 h-2 bg-orange-400 rounded-full animate-bounce [animation-delay:150ms]" />
+                <span className="w-2 h-2 bg-orange-400 rounded-full animate-bounce [animation-delay:300ms]" />
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Quick Actions */}
+      <div className="px-4 pt-2 pb-1 flex gap-2 border-t border-white/[0.06]">
+        <button
+          onClick={() => setInput("mandale 0.01 tRBTC a ")}
+          className="flex-1 text-[11px] font-medium bg-white/5 hover:bg-white/10 text-white/60 hover:text-white/80 rounded-full py-2 border border-white/10 transition-all"
+        >
+          💸 Enviar
+        </button>
+        <button
+          onClick={() => setInput("ahorra el 10%")}
+          className="flex-1 text-[11px] font-medium bg-white/5 hover:bg-white/10 text-white/60 hover:text-white/80 rounded-full py-2 border border-white/10 transition-all"
+        >
+          💰 Ahorrar
+        </button>
+        <button
+          onClick={() => setInput("cuanto tengo")}
+          className="flex-1 text-[11px] font-medium bg-white/5 hover:bg-white/10 text-white/60 hover:text-white/80 rounded-full py-2 border border-white/10 transition-all"
+        >
+          📊 Balance
+        </button>
+      </div>
+
+      {/* Input Bar */}
+      <div className="flex items-center gap-2 px-4 pb-6 pt-2">
+        <Input
+          placeholder="Escribí tu mensaje..."
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              handleSend();
+            }
+          }}
+          disabled={isLoading}
+          className="flex-1 bg-[#1c1c1c] border-white/10 text-white placeholder:text-white/25 rounded-2xl focus-visible:ring-orange-500/40 h-11"
+        />
+        <Button
+          onClick={handleSend}
+          disabled={isLoading}
+          className="rounded-full w-11 h-11 p-0 bg-orange-500 hover:bg-orange-600 disabled:opacity-50 flex-shrink-0 shadow-lg shadow-orange-500/20"
+        >
+          {isLoading ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Send className="h-4 w-4" />
+          )}
+        </Button>
+      </div>
+    </div>
   );
 }
