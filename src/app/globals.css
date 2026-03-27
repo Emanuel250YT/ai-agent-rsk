@@ -42,49 +42,169 @@
 }
 
 :root {
-  --radius: 0.625rem;
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
+  /* ── BlitzPay Warm Gold Palette ─────────────── */
+  --blitz-goldenrod: #D29C1D;
+  --blitz-floral-white: #FBF8EE;
+  --blitz-soft-fawn: #DEC691;
+  --blitz-royal-gold: #FBDC5C;
+  --blitz-coffee-bean: #6A4E2F;
+
+  --radius: 0.75rem;
+  --background: #FBF8EE;
+  --foreground: #3D2310;
+  --card: #FFFFFF;
+  --card-foreground: #3D2310;
+  --popover: #FFFFFF;
+  --popover-foreground: #3D2310;
+  --primary: #6A4E2F;
+  --primary-foreground: #FBDC5C;
+  --secondary: #DEC691;
+  --secondary-foreground: #6A4E2F;
+  --muted: #F5EDD9;
+  --muted-foreground: #8B6344;
+  --accent: #FBDC5C;
+  --accent-foreground: #6A4E2F;
   --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --border: #DEC691;
+  --input: #FFFFFF;
+  --ring: #D29C1D;
+  --chart-1: #D29C1D;
+  --chart-2: #FBDC5C;
+  --chart-3: #DEC691;
+  --chart-4: #6A4E2F;
+  --chart-5: #8B6344;
+  --sidebar: #6A4E2F;
+  --sidebar-foreground: #FBF8EE;
+  --sidebar-primary: #FBDC5C;
+  --sidebar-primary-foreground: #6A4E2F;
+  --sidebar-accent: #DEC691;
+  --sidebar-accent-foreground: #6A4E2F;
+  --sidebar-border: rgba(222, 198, 145, 0.3);
+  --sidebar-ring: #D29C1D;
 }
 
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
+
   body {
     @apply text-foreground;
-    background-image: url("/img/bg.png");
-    background-size: cover;
-    background-position: center;
-    background-repeat: no-repeat;
+    font-family: var(--font-nunito, "Nunito"), system-ui, sans-serif;
+    background-color: #FBF8EE;
   }
+}
+
+/* ── BlitzPay Animations ─────────────────────────────── */
+@keyframes blitz-slide-right {
+  from {
+    opacity: 0;
+    transform: translateX(14px) scale(0.94);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes blitz-slide-left {
+  from {
+    opacity: 0;
+    transform: translateX(-14px) scale(0.94);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes blitz-bounce {
+
+  0%,
+  80%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.45;
+  }
+
+  40% {
+    transform: translateY(-6px);
+    opacity: 1;
+  }
+}
+
+@keyframes blitz-shimmer {
+  0% {
+    transform: translateX(-200%);
+  }
+
+  100% {
+    transform: translateX(200%);
+  }
+}
+
+.msg-user {
+  animation: blitz-slide-right 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
+}
+
+.msg-agent {
+  animation: blitz-slide-left 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
+}
+
+.typing-dot {
+  animation: blitz-bounce 1.4s ease-in-out infinite;
+}
+
+.typing-dot:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.typing-dot:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+.blitz-chat-bg {
+  background-color: #F2ECD9;
+  background-image:
+    radial-gradient(ellipse at 20% 80%, rgba(210, 156, 29, 0.08) 0%, transparent 55%),
+    radial-gradient(ellipse at 80% 15%, rgba(251, 220, 92, 0.07) 0%, transparent 55%);
+}
+
+.blitz-logo-ring {
+  position: relative;
+  overflow: hidden;
+}
+
+.blitz-logo-ring::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 65%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.38), transparent);
+  animation: blitz-shimmer 3.5s ease-in-out infinite;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.font-brand {
+  font-family: var(--font-fraunces, "Fraunces"), Georgia, serif;
+}
+
+.markdown-content strong {
+  font-weight: 800;
+  color: #2D1A08;
+}
+
+.markdown-content em {
+  font-style: italic;
+  color: #6A4E2F;
+}
+
+.markdown-content a {
+  color: #D29C1D;
+  text-decoration: underline;
 }

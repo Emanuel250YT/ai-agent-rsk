@@ -1,7 +1,8 @@
 "use client";
 
 import { ConnectButton } from "@/components/ConnectButton";
-import { Loader2, Send, ExternalLink, Zap, TrendingUp, X, Wallet } from "lucide-react";
+import { Loader2, Send, ExternalLink, TrendingUp, X, Wallet } from "lucide-react";
+import Image from "next/image";
 import { Input } from "@/components/ui/input";
 import ReactMarkdown from "react-markdown";
 import { Button } from "@/components/ui/button";
@@ -29,6 +30,7 @@ interface PendingWATx {
   amount?: number;
   token?: string;
   percentage?: number;
+  phone?: string; // WA phone for callback after MetaMask signs
 }
 
 export default function Home() {
@@ -161,17 +163,31 @@ export default function Home() {
         setMessages([
           ...withUser,
           addAgentMessage(
-            <div className="space-y-1">
-              <p className="text-white/60 text-xs">Tu balance actual</p>
-              <p className="text-2xl font-bold text-orange-400">
+            <div className="space-y-0.5">
+              <p className="text-[#6A4E2F]/50 text-xs font-medium">Tu balance actual</p>
+              <p className="text-2xl font-black text-[#D29C1D]">
                 {bal.displayValue.toFixed(6)}{" "}
-                <span className="text-base text-white/70">{bal.symbol}</span>
+                <span className="text-base text-[#6A4E2F]/60 font-semibold">{bal.symbol}</span>
               </p>
             </div>
           ),
         ]);
+        if (tx.phone) {
+          fetch("/api/webhook/tx-callback", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ phone: tx.phone, action: "balance", balance: bal.displayValue, symbol: bal.symbol }),
+          }).catch(() => { });
+        }
       } catch (e) {
         setMessages([...withUser, addAgentMessage(`❌ Error: ${e instanceof Error ? e.message : "Error"}`)]);
+        if (tx.phone) {
+          fetch("/api/webhook/tx-callback", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ phone: tx.phone, action: "balance", error: e instanceof Error ? e.message : "Error" }),
+          }).catch(() => { });
+        }
       } finally {
         setIsLoading(false);
       }
@@ -188,6 +204,13 @@ export default function Home() {
           </div>
         ),
       ]);
+      if (tx.phone) {
+        fetch("/api/webhook/tx-callback", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ phone: tx.phone, action: "autosave", percentage: tx.percentage }),
+        }).catch(() => { });
+      }
       return;
     }
 
@@ -213,18 +236,39 @@ export default function Home() {
               href={`${BLOCK_EXPLORER_URL}${hash}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-1 text-orange-400 hover:text-orange-300 underline"
+              className="flex items-center gap-1.5 text-[#D29C1D] hover:text-[#6A4E2F] underline font-semibold"
             >
               ✅ Transacción enviada: {`${hash.slice(0, 6)}...${hash.slice(-4)}`}
               <ExternalLink size={14} />
             </a>
           ),
         ]);
+        if (tx.phone) {
+          fetch("/api/webhook/tx-callback", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              phone: tx.phone,
+              action: "transfer",
+              txHash: hash,
+              amount: tx.amount,
+              token: tx.token ?? "tRBTC",
+              to: tx.to,
+            }),
+          }).catch(() => { });
+        }
       } catch (e) {
         setMessages([
           ...withUser,
           addAgentMessage(`❌ Error: ${e instanceof Error ? e.message : "Operación fallida"}`),
         ]);
+        if (tx.phone) {
+          fetch("/api/webhook/tx-callback", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ phone: tx.phone, action: "transfer", error: e instanceof Error ? e.message : "Operación fallida" }),
+          }).catch(() => { });
+        }
       } finally {
         setIsLoading(false);
       }
@@ -295,7 +339,7 @@ export default function Home() {
                   href={`${BLOCK_EXPLORER_URL}${transactionHash}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center gap-1 text-orange-400 hover:text-orange-300 underline"
+                  className="flex items-center gap-1.5 text-[#D29C1D] hover:text-[#6A4E2F] underline font-semibold"
                 >
                   ✅ Transacción enviada:{" "}
                   {`${transactionHash.slice(0, 6)}...${transactionHash.slice(-4)}`}
@@ -310,11 +354,11 @@ export default function Home() {
             setMessages([
               ...newMessages,
               addAgentMessage(
-                <div className="space-y-1">
-                  <p className="text-white/60 text-xs">Tu balance actual</p>
-                  <p className="text-2xl font-bold text-orange-400">
+                <div className="space-y-0.5">
+                  <p className="text-[#6A4E2F]/50 text-xs font-medium">Tu balance actual</p>
+                  <p className="text-2xl font-black text-[#D29C1D]">
                     {balance.displayValue.toFixed(6)}{" "}
-                    <span className="text-base text-white/70">{balance.symbol}</span>
+                    <span className="text-base text-[#6A4E2F]/60 font-semibold">{balance.symbol}</span>
                   </p>
                 </div>
               ),
@@ -381,37 +425,45 @@ export default function Home() {
     const params = new URLSearchParams(window.location.search);
     if (!params.get("wha")) return;
     const action = params.get("action");
+    const phone = params.get("phone") ?? undefined;
     window.history.replaceState({}, "", "/");
     if (action === "transfer") {
       const to = params.get("to");
       const amount = params.get("amount");
       const token = params.get("token") ?? "tRBTC";
-      if (to && amount) setPendingWATx({ action: "transfer", to, amount: parseFloat(amount), token });
+      if (to && amount) setPendingWATx({ action: "transfer", to, amount: parseFloat(amount), token, phone });
     } else if (action === "balance") {
-      setPendingWATx({ action: "balance" });
+      setPendingWATx({ action: "balance", phone });
     } else if (action === "autosave") {
       const pct = params.get("percentage");
-      if (pct) setPendingWATx({ action: "autosave", percentage: parseFloat(pct) });
+      if (pct) setPendingWATx({ action: "autosave", percentage: parseFloat(pct), phone });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
-    <div className="flex flex-col h-screen max-w-md mx-auto bg-[#0a0a0a] relative">
+    <div
+      className="flex flex-col h-[100dvh] max-w-md mx-auto relative overflow-hidden"
+      style={{ fontFamily: "var(--font-nunito, 'Nunito'), system-ui, sans-serif" }}
+    >
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 bg-[#111111] border-b border-white/10 z-10">
-        <div className="flex items-center gap-2.5">
-          <div className="w-9 h-9 bg-orange-500 rounded-full flex items-center justify-center shadow-lg shadow-orange-500/30">
-            <Zap className="w-4 h-4 text-white" fill="white" />
+      <div className="flex items-center justify-between px-4 py-3 bg-[#6A4E2F] z-10 shadow-[0_2px_16px_rgba(106,78,47,0.3)]">
+        <div className="flex items-center gap-3">
+          <div className="blitz-logo-ring w-11 h-11 rounded-full overflow-hidden shadow-lg shadow-[#FBDC5C]/30 flex-shrink-0">
+            <Image src="/img/blitz-robot.png" width={44} height={44} alt="BlitzPay" className="w-full h-full object-cover" priority />
           </div>
           <div>
-            <p className="font-bold text-white text-sm leading-tight">BlitzPay</p>
-            <p className="text-[11px] text-green-400 leading-tight">● Online · Rootstock Testnet</p>
+            <p className="font-brand font-black text-[#FBF8EE] text-[17px] leading-tight tracking-[-0.01em]">
+              BlitzPay
+            </p>
+            <p className="text-[10px] text-[#DEC691]/80 leading-tight font-medium">
+              ● Online&nbsp;·&nbsp;Rootstock Testnet
+            </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
           {address && (
-            <span className="hidden sm:flex items-center gap-1 text-[11px] text-white/40 bg-white/5 rounded-full px-2.5 py-1">
+            <span className="hidden sm:flex items-center gap-1.5 text-[10px] text-[#DEC691] bg-white/10 rounded-full px-2.5 py-1 font-medium border border-[#DEC691]/20">
               <Wallet className="w-3 h-3" />
               {`${address.slice(0, 5)}…${address.slice(-4)}`}
             </span>
@@ -422,16 +474,17 @@ export default function Home() {
 
       {/* AutoSave Banner */}
       {autoSave?.active && (
-        <div className="flex items-center justify-between px-4 py-2 bg-green-500/10 border-b border-green-500/20">
+        <div className="flex items-center justify-between px-4 py-2.5 bg-[#FBDC5C] border-b border-[#D29C1D]/30">
           <div className="flex items-center gap-2">
-            <TrendingUp className="w-4 h-4 text-green-400 flex-shrink-0" />
-            <span className="text-xs text-green-300">
-              Auto-ahorro activo: <span className="font-semibold">{autoSave.percentage}%</span> de cada ingreso
+            <TrendingUp className="w-4 h-4 text-[#6A4E2F] flex-shrink-0" />
+            <span className="text-xs text-[#6A4E2F] font-semibold">
+              Auto-ahorro activo:{" "}
+              <span className="font-black">{autoSave.percentage}%</span> de cada ingreso
             </span>
           </div>
           <button
             onClick={() => setAutoSave(null)}
-            className="text-green-400/50 hover:text-green-400 transition-colors ml-2"
+            className="text-[#6A4E2F]/50 hover:text-[#6A4E2F] transition-colors ml-2"
             aria-label="Cancelar auto-ahorro"
           >
             <X className="w-4 h-4" />
@@ -441,7 +494,7 @@ export default function Home() {
 
       {/* Chat Messages */}
       <div
-        className="flex-1 overflow-y-auto px-4 py-4 space-y-0.5"
+        className="flex-1 overflow-y-auto px-3.5 py-4 space-y-0.5 blitz-chat-bg"
         ref={containerRef}
       >
         {messages.map(({ role, content, timestamp }, idx) => {
@@ -449,29 +502,30 @@ export default function Home() {
           return (
             <div
               key={idx}
-              className={`flex items-end gap-2 ${role === "user" ? "justify-end" : "justify-start"}${isGroupStart && idx > 0 ? " mt-3" : ""}`}
+              className={`flex items-end gap-2 ${role === "user" ? "justify-end msg-user" : "justify-start msg-agent"
+                }${isGroupStart && idx > 0 ? " mt-4" : " mt-0.5"}`}
             >
               {role === "agent" ? (
                 isGroupStart ? (
-                  <div className="w-7 h-7 rounded-full bg-orange-500 flex items-center justify-center flex-shrink-0 shadow-md shadow-orange-500/20">
-                    <Zap className="w-3.5 h-3.5 text-white" fill="white" />
+                  <div className="w-7 h-7 rounded-full overflow-hidden flex-shrink-0 shadow-md">
+                    <Image src="/img/blitz-robot.png" width={28} height={28} alt="BlitzPay" className="w-full h-full object-cover" />
                   </div>
                 ) : (
                   <div className="w-7 flex-shrink-0" />
                 )
               ) : null}
               <div
-                className={`max-w-[78%] rounded-2xl px-3.5 py-2.5 ${role === "user"
-                  ? "bg-orange-500 text-white rounded-br-sm shadow-md shadow-orange-500/20"
-                  : "bg-[#1c1c1c] text-white/90 rounded-bl-sm border border-white/[0.06]"
+                className={`max-w-[80%] px-4 py-2.5 ${role === "user"
+                  ? "bg-[#FBDC5C] text-[#3D2310] rounded-[18px] rounded-br-[5px] shadow-[0_2px_10px_rgba(210,156,29,0.22)]"
+                  : "bg-white text-[#4A3220] rounded-[18px] rounded-bl-[5px] border border-[#DEC691]/60 shadow-[0_1px_6px_rgba(106,78,47,0.08)]"
                   }`}
               >
-                <div className="text-sm leading-relaxed whitespace-pre-wrap break-words">
+                <div className="text-[13.5px] leading-relaxed break-words">
                   {content}
                 </div>
                 <div
-                  className={`text-[10px] mt-1 ${role === "user" ? "text-orange-200/70" : "text-white/25"
-                    } text-right`}
+                  className={`text-[10px] mt-1 text-right ${role === "user" ? "text-[#6A4E2F]/50" : "text-[#6A4E2F]/30"
+                    }`}
                 >
                   {timestamp.toLocaleTimeString([], {
                     hour: "2-digit",
@@ -484,15 +538,15 @@ export default function Home() {
         })}
 
         {isLoading && (
-          <div className="flex items-end gap-2 justify-start">
-            <div className="w-7 h-7 rounded-full bg-orange-500 flex items-center justify-center flex-shrink-0">
-              <Zap className="w-3.5 h-3.5 text-white" fill="white" />
+          <div className="flex items-end gap-2 justify-start mt-4">
+            <div className="w-7 h-7 rounded-full overflow-hidden flex-shrink-0 shadow-md">
+              <Image src="/img/blitz-robot.png" width={28} height={28} alt="BlitzPay" className="w-full h-full object-cover" />
             </div>
-            <div className="bg-[#1c1c1c] rounded-2xl rounded-bl-sm px-4 py-3 border border-white/[0.06]">
+            <div className="bg-white rounded-[18px] rounded-bl-[5px] px-5 py-3.5 border border-[#DEC691]/60 shadow-[0_1px_6px_rgba(106,78,47,0.08)]">
               <div className="flex gap-1.5 items-center">
-                <span className="w-2 h-2 bg-orange-400 rounded-full animate-bounce [animation-delay:0ms]" />
-                <span className="w-2 h-2 bg-orange-400 rounded-full animate-bounce [animation-delay:150ms]" />
-                <span className="w-2 h-2 bg-orange-400 rounded-full animate-bounce [animation-delay:300ms]" />
+                <span className="w-2.5 h-2.5 bg-[#D29C1D] rounded-full typing-dot" />
+                <span className="w-2.5 h-2.5 bg-[#D29C1D] rounded-full typing-dot" />
+                <span className="w-2.5 h-2.5 bg-[#D29C1D] rounded-full typing-dot" />
               </div>
             </div>
           </div>
@@ -500,22 +554,22 @@ export default function Home() {
       </div>
 
       {/* Quick Actions */}
-      <div className="px-4 pt-2 pb-1 flex gap-2 border-t border-white/[0.06]">
+      <div className="px-3.5 pt-2.5 pb-2 flex gap-2 bg-[#FBF8EE] border-t border-[#DEC691]/40">
         <button
           onClick={() => setInput("mandale 0.01 tRBTC a ")}
-          className="flex-1 text-[11px] font-medium bg-white/5 hover:bg-white/10 text-white/60 hover:text-white/80 rounded-full py-2 border border-white/10 transition-all"
+          className="flex-1 text-[11px] font-bold bg-[#6A4E2F]/[0.07] hover:bg-[#6A4E2F]/[0.13] text-[#6A4E2F] rounded-full py-2.5 border border-[#DEC691]/60 transition-all active:scale-95"
         >
           💸 Enviar
         </button>
         <button
           onClick={() => setInput("ahorra el 10%")}
-          className="flex-1 text-[11px] font-medium bg-white/5 hover:bg-white/10 text-white/60 hover:text-white/80 rounded-full py-2 border border-white/10 transition-all"
+          className="flex-1 text-[11px] font-bold bg-[#6A4E2F]/[0.07] hover:bg-[#6A4E2F]/[0.13] text-[#6A4E2F] rounded-full py-2.5 border border-[#DEC691]/60 transition-all active:scale-95"
         >
           💰 Ahorrar
         </button>
         <button
           onClick={() => setInput("cuanto tengo")}
-          className="flex-1 text-[11px] font-medium bg-white/5 hover:bg-white/10 text-white/60 hover:text-white/80 rounded-full py-2 border border-white/10 transition-all"
+          className="flex-1 text-[11px] font-bold bg-[#6A4E2F]/[0.07] hover:bg-[#6A4E2F]/[0.13] text-[#6A4E2F] rounded-full py-2.5 border border-[#DEC691]/60 transition-all active:scale-95"
         >
           📊 Balance
         </button>
@@ -523,32 +577,37 @@ export default function Home() {
 
       {/* Pending WhatsApp Transaction */}
       {pendingWATx && (
-        <div className="mx-4 mb-2 p-3.5 bg-orange-500/10 border border-orange-500/25 rounded-xl">
+        <div className="mx-3.5 mb-2 p-4 bg-[#6A4E2F] rounded-2xl shadow-lg">
           <div className="flex items-start justify-between gap-2 mb-3">
             <div>
-              <p className="text-xs font-semibold text-orange-400">📲 Transacción desde WhatsApp</p>
+              <p className="text-[11px] font-bold text-[#FBDC5C] uppercase tracking-wide">
+                📲 Transacción desde WhatsApp
+              </p>
               {pendingWATx.action === "transfer" && pendingWATx.to && (
-                <p className="text-sm text-white/80 mt-1">
+                <p className="text-sm text-[#FBF8EE] mt-1">
                   Enviar{" "}
-                  <span className="font-bold text-white">{pendingWATx.amount} {pendingWATx.token}</span>
+                  <span className="font-black text-[#FBDC5C]">
+                    {pendingWATx.amount} {pendingWATx.token}
+                  </span>
                   {" a "}
-                  <span className="font-mono text-xs bg-white/10 px-1.5 py-0.5 rounded">
+                  <span className="font-mono text-xs bg-white/15 px-1.5 py-0.5 rounded text-[#DEC691]">
                     {pendingWATx.to.slice(0, 6)}…{pendingWATx.to.slice(-4)}
                   </span>
                 </p>
               )}
               {pendingWATx.action === "balance" && (
-                <p className="text-sm text-white/80 mt-1">Consultar balance</p>
+                <p className="text-sm text-[#FBF8EE]/80 mt-1">Consultar balance</p>
               )}
               {pendingWATx.action === "autosave" && (
-                <p className="text-sm text-white/80 mt-1">
-                  Auto-ahorro <span className="font-bold text-white">{pendingWATx.percentage}%</span>
+                <p className="text-sm text-[#FBF8EE] mt-1">
+                  Auto-ahorro{" "}
+                  <span className="font-black text-[#FBDC5C]">{pendingWATx.percentage}%</span>
                 </p>
               )}
             </div>
             <button
               onClick={() => setPendingWATx(null)}
-              className="text-white/30 hover:text-white/60 transition-colors"
+              className="text-[#DEC691]/50 hover:text-[#DEC691] transition-colors flex-shrink-0"
             >
               <X className="w-4 h-4" />
             </button>
@@ -557,13 +616,13 @@ export default function Home() {
             <button
               onClick={handleConfirmWATx}
               disabled={!isConnected || isLoading}
-              className="flex-1 bg-orange-500 hover:bg-orange-400 disabled:opacity-40 text-white text-xs font-semibold py-2 rounded-lg transition-colors"
+              className="flex-1 bg-[#FBDC5C] hover:bg-[#FFE77A] disabled:opacity-40 text-[#6A4E2F] text-sm font-black py-2.5 rounded-xl transition-colors active:scale-95"
             >
               {isConnected ? "Confirmar en MetaMask" : "Conectá tu wallet primero"}
             </button>
             <button
               onClick={() => setPendingWATx(null)}
-              className="px-3 bg-white/5 hover:bg-white/10 text-white/50 text-xs py-2 rounded-lg transition-colors"
+              className="px-4 bg-white/10 hover:bg-white/20 text-[#FBF8EE]/70 text-xs py-2.5 rounded-xl transition-colors"
             >
               Cancelar
             </button>
@@ -572,7 +631,7 @@ export default function Home() {
       )}
 
       {/* Input Bar */}
-      <div className="flex items-center gap-2 px-4 pb-6 pt-2">
+      <div className="flex items-center gap-2.5 px-3.5 pb-[max(env(safe-area-inset-bottom),20px)] pt-2 bg-[#FBF8EE]">
         <Input
           placeholder="Escribí tu mensaje..."
           value={input}
@@ -584,17 +643,17 @@ export default function Home() {
             }
           }}
           disabled={isLoading}
-          className="flex-1 bg-[#1c1c1c] border-white/10 text-white placeholder:text-white/25 rounded-2xl focus-visible:ring-orange-500/40 h-11"
+          className="flex-1 bg-white border-[#DEC691]/70 text-[#3D2310] placeholder:text-[#6A4E2F]/35 rounded-2xl focus-visible:ring-[#D29C1D]/40 focus-visible:border-[#D29C1D] h-12 text-[14px] shadow-[0_1px_4px_rgba(106,78,47,0.08)]"
         />
         <Button
           onClick={handleSend}
           disabled={isLoading}
-          className="rounded-full w-11 h-11 p-0 bg-orange-500 hover:bg-orange-600 disabled:opacity-50 flex-shrink-0 shadow-lg shadow-orange-500/20"
+          className="rounded-full w-12 h-12 p-0 bg-[#6A4E2F] hover:bg-[#5A3E1F] disabled:opacity-50 flex-shrink-0 shadow-lg shadow-[#6A4E2F]/25"
         >
           {isLoading ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
+            <Loader2 className="h-5 w-5 animate-spin text-[#FBDC5C]" />
           ) : (
-            <Send className="h-4 w-4" />
+            <Send className="h-5 w-5 text-[#FBDC5C]" />
           )}
         </Button>
       </div>

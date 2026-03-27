@@ -6,6 +6,7 @@ import {
   createLinkToken,
   getSession,
 } from "@/lib/waha-sessions";
+import { sendReply } from "@/lib/waha-reply";
 
 /**
  * BlitzPay WAHA Webhook v2
@@ -32,30 +33,11 @@ interface WAHAMessage {
   };
 }
 
-// ─── WAHA reply helper ────────────────────────────────────────────────────────
+// ─── Deep-link builder ────────────────────────────────────────────────────────
 
-async function sendReply(chatId: string, text: string): Promise<void> {
-  const wahaUrl = process.env.WAHA_API_URL;
-  if (!wahaUrl) {
-    // No WAHA server configured — log only (useful for local dev)
-    console.log(`[WAHA → ${chatId}] ${text}`);
-    return;
-  }
-  try {
-    const headers: Record<string, string> = { "Content-Type": "application/json" };
-    if (process.env.WAHA_API_KEY) headers["X-Api-Key"] = process.env.WAHA_API_KEY;
-    await fetch(`${wahaUrl}/api/sendText`, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({
-        session: process.env.WAHA_SESSION ?? "default",
-        chatId,
-        text,
-      }),
-    });
-  } catch (err) {
-    console.error("[WAHA sendReply] Failed:", err);
-  }
+function appUrl(params: Record<string, string>): string {
+  const base = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+  return `${base}?${new URLSearchParams(params).toString()}`;
 }
 
 // ─── Command parser ───────────────────────────────────────────────────────────
@@ -88,13 +70,6 @@ function parseCommand(msg: string): Cmd | null {
   if (sv) return { action: "autosave", percentage: parseFloat(sv[1]) };
 
   return null;
-}
-
-// ─── Deep-link builder ────────────────────────────────────────────────────────
-
-function appUrl(params: Record<string, string>): string {
-  const base = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
-  return `${base}?${new URLSearchParams(params).toString()}`;
 }
 
 // ─── Webhook POST ─────────────────────────────────────────────────────────────
@@ -176,6 +151,7 @@ export async function POST(req: Request) {
         to: cmd.to,
         amount: String(cmd.amount),
         token: cmd.token,
+        phone,
         wha: "1",
       });
 
@@ -190,7 +166,7 @@ export async function POST(req: Request) {
     }
 
     if (cmd?.action === "balance") {
-      const balUrl = appUrl({ action: "balance", wha: "1" });
+      const balUrl = appUrl({ action: "balance", phone, wha: "1" });
       await sendReply(
         chatId,
         `📊 Consultá tu saldo en tiempo real:\n${balUrl}\n\n` +
@@ -238,6 +214,7 @@ export async function POST(req: Request) {
           to: String(args.address),
           amount: String(args.amount),
           token: String(args.token1 ?? "tRBTC"),
+          phone,
           wha: "1",
         });
         reply =
@@ -246,12 +223,13 @@ export async function POST(req: Request) {
           `• Para: \`${String(args.address).slice(0, 6)}…${String(args.address).slice(-4)}\`\n\n` +
           `Tocá para firmar con MetaMask:\n${txUrl}`;
       } else if (fn === "balance") {
-        const balUrl = appUrl({ action: "balance", wha: "1" });
+        const balUrl = appUrl({ action: "balance", phone, wha: "1" });
         reply = `📊 Consultá tu saldo:\n${balUrl}`;
       } else if (fn === "autosave" && args.percentage) {
         const saveUrl = appUrl({
           action: "autosave",
           percentage: String(args.percentage),
+          phone,
           wha: "1",
         });
         reply =
